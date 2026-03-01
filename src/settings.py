@@ -1,16 +1,16 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import SecretStr
 from functools import lru_cache
-from langchain_groq import Chat_Groq
+from langchain_groq import ChatGroq
 
 class Settings(BaseSettings):
     DB_URL: str = "sqlite:///jobs.db"
     
-    telegram_bot_token: str
-    telegram_chat_id: str
-    openai_api_key: str
+    TELEGRAM_BOT_API_KEY: str
+    TELEGRAM_CHAT_ID: str
     LLM: str = "llama-3.3-70b-versatile"
     min_ai_score: int = 7
-
+    GROQ_API_KEY: str
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 @lru_cache()

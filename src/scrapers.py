@@ -50,6 +50,7 @@ class JustJoinIt(BaseScraper):
                 # Dodajemy pełny link do każdej oferty
                 for offer in offers:
                     offer['full_url'] = f"{self.OFFER_FRONTEND_URL}{offer.get('slug')}"
+                    offer['source'] = 'justjoin'
                 all_results.extend(offers) 
             except Exception:
                 continue
@@ -84,6 +85,7 @@ class NoFluffJobs(BaseScraper):
             for offer in offers:
                 slug = offer.get('url')
                 offer['full_url'] = f"{self.OFFER_FRONTEND_URL}{slug}"
+                offer['source'] = 'nofluffjobs'
             return offers
         except Exception:
             self.logger.error(f"Nie udało się pobrać danych z NoFluffJobs.")
