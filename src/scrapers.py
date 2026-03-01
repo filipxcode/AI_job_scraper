@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging 
 
-# Podstawowa konfiguracja logowania
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class BaseScraper(ABC):
@@ -57,7 +57,6 @@ class JustJoinIt(BaseScraper):
 
 class NoFluffJobs(BaseScraper):
     API_URL = "https://nofluffjobs.com/api/search/posting?sort=newest&pageSize=20&salaryCurrency=PLN&salaryPeriod=month&region=pl"
-    # To jest URL bazowy do budowania linków dla użytkownika
     OFFER_FRONTEND_URL = "https://nofluffjobs.com/job/"
 
     def __init__(self):
@@ -89,20 +88,3 @@ class NoFluffJobs(BaseScraper):
         except Exception:
             self.logger.error(f"Nie udało się pobrać danych z NoFluffJobs.")
             return []
-
-if __name__ == "__main__":
-    # 1. Pobieramy dane
-    jjit = JustJoinIt().fetch_all()
-    nfj = NoFluffJobs().fetch_all()
-
-    # 2. Łączymy wyniki
-    all_offers = jjit + nfj
-
-    # 3. Wyciągamy TYLKO gotowe adresy URL
-    # Skoro klasy już dodały 'full_url', po prostu go bierzemy
-    all_urls = [offer.get('full_url') for offer in all_offers if offer.get('full_url')]
-
-    # 4. Drukowanie wyniku (to tutaj decydujesz co widzisz w konsoli)
-    print(f"\nZnaleziono łącznie {len(all_urls)} linków:")
-    for url in all_urls:
-        print(url)

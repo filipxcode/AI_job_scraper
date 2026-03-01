@@ -16,25 +16,13 @@ class AppService:
         self.repo = JobRepository(SessionLocal)
         
     def _process_data(self):
-        all_parsed = []
+        all_data = []
         for scraper in self.scrapers:
             data = scraper.fetch_all()
-            class_name = scraper.__class__.__name__
-            logger.info(f"Dane ze scrapera {class_name}: {data}")
-            # Ustal źródło na podstawie klasy scrapera
-            if class_name.lower().startswith("justjoin"):
-                source = "justjoin"
-            elif class_name.lower().startswith("nofluff"):
-                source = "nofluff"
-            else:
-                source = class_name.lower()
-            parsed = self.parser.parse(data, source)
-            logger.info(f"Sparsowane dane ({source}): {parsed}")
-            print(f"Sparsowane dane ({source}):")
-            for item in parsed:
-                print(item)
-            all_parsed.extend(parsed)
+            logger.info(f"Dane ze scrapera {scraper.__class__.__name__}: {data}")
+            all_data.extend(data)
 
-if __name__ == '__main__':
-    app = AppService()
-    app._process_data()
+        parsed_data = self.parser.parse(all_data)
+        logger.info(f"Sparsowane dane: {parsed_data}")
+        for item in parsed_data:
+            print(item) 
