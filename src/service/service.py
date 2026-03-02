@@ -7,6 +7,7 @@ from .scrapers import NoFluffJobs, JustJoinIt
 from ..schemas.schemas import JobOfferBase, JobOfferCreate
 from ..config.settings import get_settings
 from ..utils.telegram import TelegramNotifier, format_offer_message
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
