@@ -1,17 +1,35 @@
+import os
 import requests 
-import json
 from abc import ABC, abstractmethod
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging 
 
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+
+def _env_csv(name: str, default: list[str]) -> list[str]:
+    """Read a comma-separated env var into a list of strings."""
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read an int env var; fall back to default if missing/invalid."""
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 class BaseScraper(ABC):
     def __init__(self):
         """Base class for job board scrapers."""
         self.logger = logging.getLogger(self.__class__.__name__)
-        
+
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
     def fetch_safe(self, url, *args, **kwargs):
         """Fetch data with retries and basic error logging."""
@@ -32,10 +50,14 @@ class JustJoinIt(BaseScraper):
 
     def __init__(self):
         super().__init__()
-        self.categories = ["ai", "python", "data"]
-        self.limit = 50
+        self.categories = _env_csv("JJI_CATEGORIES", ["ai", "python", "data"])
+        self.experience_levels = _env_csv("JJI_EXPERIENCE_LEVELS", ["junior"])
+        self.limit = _env_int("JJI_ITEMS_COUNT", 50)
+        self.from_offset = _env_int("JJI_FROM", 0)
+
+        experience_levels_q = ",".join(self.experience_levels)
         self.urls = [
-            f"{self.BASE_URL}offers?categories={cat}&experienceLevels=junior&itemsCount={self.limit}&from=0"
+            f"{self.BASE_URL}offers?categories={cat}&experienceLevels={experience_levels_q}&itemsCount={self.limit}&from={self.from_offset}"
             for cat in self.categories
         ]
     
@@ -66,11 +88,15 @@ class NoFluffJobs(BaseScraper):
 
     def __init__(self):
         super().__init__()
+        raw_search = os.getenv("NFJ_RAW_SEARCH", "junior python")
+        categories = _env_csv("NFJ_CATEGORY", ["artificial-intelligence"])
+        developer_status = _env_csv("NFJ_DEVELOPER_STATUS", ["junior"])
+
         self.payload = {
-            "rawSearch": "junior python",
+            "rawSearch": raw_search,
             "common": {
-                "category": ["artificial-intelligence"],
-                "developerStatus": ["junior"]
+                "category": categories,
+                "developerStatus": developer_status,
             }
         }
 
