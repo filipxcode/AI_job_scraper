@@ -14,11 +14,13 @@ class JobParser:
     }
     
     def _skills_to_string(self, item: dict, mapping: dict) -> str:
+        """Render required/nice-to-have skills as a simple multiline string."""
         required = item.get(mapping['skills']) or []
         nice = item.get(mapping['nice_to_have']) or []
         return f"REQUIRED: {required}\nNICE_TO_HAVE: {nice}"
 
     def _nofluff_city(self, item: dict) -> str | None:
+        """Extract a city name from a NoFluffJobs offer payload."""
         location = item.get("location")
         if not isinstance(location, dict):
             return None
@@ -38,6 +40,7 @@ class JobParser:
         return None
 
     def _nofluff_skills_to_string(self, item: dict) -> str:
+        """Render skills for NoFluffJobs offers."""
         tiles = item.get("tiles")
         values = tiles.get("values") if isinstance(tiles, dict) else None
         values = values if isinstance(values, list) else []
@@ -52,14 +55,15 @@ class JobParser:
         return f"REQUIRED: {required}\nNICE_TO_HAVE: {nice}"
     
     def parse(self, raw_data: list[dict]) -> list[JobOfferCreate]:
+        """Parse raw scraper output into a list of JobOfferCreate objects."""
         if not isinstance(raw_data, list):
-            logger.warning(f"Parser dostał {type(raw_data)=}, oczekiwano list[dict].")
+            logger.warning(f"Parser received {type(raw_data)=}; expected list[dict].")
             return []
 
         offers: list[JobOfferCreate] = []
         for item in raw_data:
             if not isinstance(item, dict):
-                logger.warning(f"Pominięto rekord o typie {type(item)=}: {item!r}")
+                logger.warning(f"Skipped non-dict record {type(item)=}: {item!r}")
                 continue
 
             source = item.get("source")
@@ -72,7 +76,7 @@ class JobParser:
             else:
                 mapping = self.MAPPINGS.get(source)
                 if not mapping:
-                    logger.info(f"Błąd: Nie znaleziono mapowania dla źródła: {source}")
+                    logger.info(f"No mapping found for source: {source}")
                     continue
 
                 title = item.get(mapping['title'], "No title")
@@ -82,7 +86,7 @@ class JobParser:
 
             url = item.get('full_url') or item.get('url') or ""
             if not url:
-                logger.warning("Pominięto ofertę bez URL")
+                logger.warning("Skipped offer without URL")
                 continue
             
             offers.append(

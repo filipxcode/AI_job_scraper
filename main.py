@@ -10,6 +10,7 @@ from src.service.service import AppService
 
 
 def _setup_logging(level: str) -> None:
+    """Configure root logging with a consistent format."""
     logging.basicConfig(
         level=getattr(logging, (level or "INFO").upper(), logging.INFO),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,6 +18,7 @@ def _setup_logging(level: str) -> None:
 
 
 def _acquire_lock(lock_path: str):
+    """Acquire an exclusive, non-blocking file lock to prevent overlapping runs."""
     lock_file = open(lock_path, "w", encoding="utf-8")
     try:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -26,6 +28,7 @@ def _acquire_lock(lock_path: str):
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint. Returns a process exit code."""
     parser = argparse.ArgumentParser(description="AI Job Scraper")
     parser.add_argument(
         "--mode",
@@ -59,17 +62,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         lock_handle = _acquire_lock(args.lock_file)
     except Exception as e:
-        logger.error(f"Nie udało się założyć locka: {e}")
+        logger.error(f"Failed to acquire lock: {e}")
         return 2
 
     try:
         logger.info(f"Start AI Job Scraper (mode={args.mode})")
         app = AppService(path=args.candidate_path)
         app.run(mode=args.mode)
-        logger.info("Zakończono")
+        logger.info("Done")
         return 0
     except Exception:
-        logger.exception("Błąd w trakcie działania")
+        logger.exception("Unhandled error during execution")
         return 1
     finally:
         try:

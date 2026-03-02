@@ -9,15 +9,17 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 class BaseScraper(ABC):
     def __init__(self):
+        """Base class for job board scrapers."""
         self.logger = logging.getLogger(self.__class__.__name__)
         
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
     def fetch_safe(self, url, *args, **kwargs):
-        self.logger.info(f"Rozpoczynam pobieranie: {url}")
+        """Fetch data with retries and basic error logging."""
+        self.logger.info(f"Fetching: {url}")
         try:
             return self.get_data(url, *args, **kwargs)
         except Exception as e:
-            self.logger.error(f"Błąd podczas pobierania {url}: {e}")
+            self.logger.error(f"Error while fetching {url}: {e}")
             raise
         
     @abstractmethod
@@ -38,11 +40,13 @@ class JustJoinIt(BaseScraper):
         ]
     
     def get_data(self, url) -> list[dict]:
+        """Fetch JustJoin.it offers JSON."""
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         return response.json().get('data', [])
 
     def fetch_all(self):
+        """Fetch and normalize offers for all configured categories."""
         all_results = []
         for url in self.urls:
             try:
@@ -71,6 +75,7 @@ class NoFluffJobs(BaseScraper):
         }
 
     def get_data(self, url, payload=None) -> list[dict]:
+        """Fetch NoFluffJobs postings JSON."""
         headers = {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -80,6 +85,7 @@ class NoFluffJobs(BaseScraper):
         return response.json().get('postings', [])
 
     def _is_remote_variant(self, offer: dict) -> bool:
+        """Detect whether the offer represents a fully-remote variant."""
         location = offer.get("location")
         if isinstance(location, dict) and location.get("fullyRemote") is True:
             return True
@@ -92,6 +98,7 @@ class NoFluffJobs(BaseScraper):
         return False
 
     def _dedupe_offers(self, offers: list[dict]) -> list[dict]:
+        """De-duplicate postings, preferring remote variants when available."""
         best_by_key: dict[str, dict] = {}
         for offer in offers:
             if not isinstance(offer, dict):
@@ -112,6 +119,7 @@ class NoFluffJobs(BaseScraper):
         return list(best_by_key.values())
 
     def fetch_all(self):
+        """Fetch, normalize and de-duplicate NoFluffJobs offers."""
         try:
             offers = self.fetch_safe(self.API_URL, payload=self.payload)
             for offer in offers:
@@ -120,5 +128,5 @@ class NoFluffJobs(BaseScraper):
                 offer['source'] = 'nofluffjobs'
             return self._dedupe_offers(offers)
         except Exception:
-            self.logger.error(f"Nie udało się pobrać danych z NoFluffJobs.")
+            self.logger.error("Failed to fetch data from NoFluffJobs")
             return []

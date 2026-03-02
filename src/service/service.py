@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class AppService:
     def __init__(self, path: str = "data/candidate_data.txt"):
+        """High-level application orchestrator (scrape -> store -> optional LLM scoring)."""
         init_db()
         self.scrapers = [NoFluffJobs(), JustJoinIt()]
         self.parser = JobParser()
@@ -21,37 +22,41 @@ class AppService:
         self.candidate_data = self._get_candidate_data(path)
         
     def _get_candidate_data(self, path: str) -> str:
+        """Load candidate profile text from disk."""
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
-            logger.error(f"Nie znaleziono pliku z danymi kandydata: {path}")
+            logger.error(f"Candidate profile file not found: {path}")
             return ""
     
     def scrape(self) -> list[JobOfferCreate]:
+        """Fetch raw offers from all scrapers and normalize them into DTOs."""
         all_data: list[dict] = []
         for scraper in self.scrapers:
             data = scraper.fetch_all()
             all_data.extend(data)
 
         parsed_data = self.parser.parse(all_data)
-        logger.info(f"Sparsowano ofert: {len(parsed_data)}")
+        logger.info(f"Parsed offers: {len(parsed_data)}")
         return parsed_data
 
     def scrape_and_store(self) -> int:
+        """Scrape offers and persist new ones into the database."""
         offers = self.scrape()
         inserted = self.repo.save_offers(offers)
-        logger.info(f"Zapisano nowych ofert do DB: {inserted}")
+        logger.info(f"Inserted new offers into DB: {inserted}")
         return inserted
     
     def llm_check(self):
+        """Run LLM scoring for offers that have not been summarized yet."""
         settings = get_settings()
         notifier: TelegramNotifier | None = None
         if settings.TELEGRAM_BOT_API_KEY and settings.TELEGRAM_CHAT_ID:
             try:
                 notifier = TelegramNotifier()
             except Exception as e:
-                logger.warning(f"Telegram disabled: {e}")
+                logger.warning(f"Telegram notifications disabled: {e}")
 
         if self.llm is None:
             self.llm = LLMProcessor()
@@ -81,9 +86,10 @@ class AppService:
                         )
                     )
                 except Exception as e:
-                    logger.warning(f"Nie udało się wysłać wiadomości na Telegram: {e}")
+                    logger.warning(f"Failed to send Telegram message: {e}")
 
     def run(self, mode: str = "all") -> None:
+        """Run the selected flow: scrape, llm, or all."""
         mode = (mode or "all").lower()
         if mode not in {"scrape", "llm", "all"}:
             raise ValueError("mode must be one of: scrape, llm, all")
