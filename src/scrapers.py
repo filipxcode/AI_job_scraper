@@ -79,6 +79,38 @@ class NoFluffJobs(BaseScraper):
         response.raise_for_status()
         return response.json().get('postings', [])
 
+    def _is_remote_variant(self, offer: dict) -> bool:
+        location = offer.get("location")
+        if isinstance(location, dict) and location.get("fullyRemote") is True:
+            return True
+
+        places = location.get("places") if isinstance(location, dict) else None
+        if isinstance(places, list):
+            for p in places:
+                if isinstance(p, dict) and p.get("city") == "Remote":
+                    return True
+        return False
+
+    def _dedupe_offers(self, offers: list[dict]) -> list[dict]:
+        best_by_key: dict[str, dict] = {}
+        for offer in offers:
+            if not isinstance(offer, dict):
+                continue
+
+            key = offer.get("reference") or offer.get("id")
+            if key is None:
+                key = offer.get("full_url") or offer.get("url")
+            key = str(key)
+
+            current = best_by_key.get(key)
+            if current is None:
+                best_by_key[key] = offer
+                continue
+            if self._is_remote_variant(offer) and not self._is_remote_variant(current):
+                best_by_key[key] = offer
+
+        return list(best_by_key.values())
+
     def fetch_all(self):
         try:
             offers = self.fetch_safe(self.API_URL, payload=self.payload)
@@ -86,7 +118,7 @@ class NoFluffJobs(BaseScraper):
                 slug = offer.get('url')
                 offer['full_url'] = f"{self.OFFER_FRONTEND_URL}{slug}"
                 offer['source'] = 'nofluffjobs'
-            return offers
+            return self._dedupe_offers(offers)
         except Exception:
             self.logger.error(f"Nie udało się pobrać danych z NoFluffJobs.")
             return []
