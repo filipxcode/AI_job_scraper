@@ -49,4 +49,35 @@ Przykład (co 30 minut):
 `*/30 * * * * cd /home/master_g/projects/JobScraper && /home/master_g/projects/JobScraper/venv/bin/python main.py --mode all >> /var/log/job_scraper.log 2>&1`
 
 Lockfile domyślnie blokuje nakładanie się uruchomień.
+
+## Docker + CRON (VPS)
+
+Najprostszy i najbezpieczniejszy wariant na VPS: cron odpala kontener "one-shot" co 4h.
+
+1) Zbuduj obraz:
+
+`docker build -t job-scraper:latest .`
+
+2) Przygotuj katalog na dane trwałe (SQLite + candidate + lock):
+
+Przykład na hoście:
+- `/opt/job-scraper/data/` (tam trzymaj `candidate_data.txt`, `jobs.db`, `job_scraper.lock`)
+- `/opt/job-scraper/.env` (sekrety, np. `GROQ_API_KEY`)
+
+3) Ręczny test uruchomienia:
+
+`docker run --rm \
+	--env-file /opt/job-scraper/.env \
+	-e DB_URL=sqlite:////app/data/jobs.db \
+	-v /opt/job-scraper/data:/app/data \
+	job-scraper:latest \
+	--mode all \
+	--candidate-path /app/data/candidate_data.txt \
+	--lock-file /app/data/job_scraper.lock`
+
+Uwaga: `--lock-file` musi wskazywać plik na wolumenie (np. `/app/data/...`), bo `/tmp` w kontenerze nie jest współdzielone między osobnymi uruchomieniami `docker run`.
+
+4) Cron co 4 godziny (log do pliku):
+
+`0 */4 * * * docker run --rm --env-file /opt/job-scraper/.env -e DB_URL=sqlite:////app/data/jobs.db -v /opt/job-scraper/data:/app/data job-scraper:latest --mode all --candidate-path /app/data/candidate_data.txt --lock-file /app/data/job_scraper.lock >> /var/log/job_scraper.log 2>&1`
 # AI_job_scraper
