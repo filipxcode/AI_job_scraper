@@ -1,7 +1,7 @@
 import logging
 from .prompts import PromptOrganizer
-from .settings import LLMFactory
-from .schemas import ReasoningLLMOutput, ExtractorLLMOutput
+from ..config.settings import LLMFactory
+from ..schemas.schemas import ReasoningLLMOutput, ExtractorLLMOutput
 from langchain_core.messages import SystemMessage, HumanMessage
 logger = logging.getLogger(__name__)
 

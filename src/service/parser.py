@@ -1,5 +1,5 @@
 import logging
-from .schemas import JobOfferCreate
+from ..schemas.schemas import JobOfferCreate
 
 logger = logging.getLogger(__name__)
 class JobParser:

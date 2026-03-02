@@ -1,6 +1,6 @@
 from sqlalchemy import select, update
-from .models import JobOffer
-from .schemas import JobOfferCreate
+from ..models.models import JobOffer
+from ..schemas.schemas import JobOfferCreate
 
 class JobRepository:
     def __init__(self, session_factory):

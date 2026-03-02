@@ -5,3 +5,4 @@ pydantic>=2
 pydantic-settings>=2
 langchain-core
 langchain-groq
+python-telegram-bot

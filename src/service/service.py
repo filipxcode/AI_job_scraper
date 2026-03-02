@@ -1,10 +1,12 @@
 import logging
 from .parser import JobParser
-from .llm import LLMProcessor
-from .db import SessionLocal, init_db
+from ..utils.llm import LLMProcessor
+from ..db.db import get_session_factory, init_db
 from .repository import JobRepository
 from .scrapers import NoFluffJobs, JustJoinIt
-from .schemas import JobOfferBase, JobOfferCreate
+from ..schemas.schemas import JobOfferBase, JobOfferCreate
+from ..config.settings import get_settings
+from ..utils.telegram import TelegramNotifier, format_offer_message
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -13,8 +15,8 @@ class AppService:
         init_db()
         self.scrapers = [NoFluffJobs(), JustJoinIt()]
         self.parser = JobParser()
-        self.llm = LLMProcessor()
-        self.repo = JobRepository(SessionLocal)
+        self.llm: LLMProcessor | None = None
+        self.repo = JobRepository(get_session_factory())
         self.candidate_data = self._get_candidate_data(path)
         
     def _get_candidate_data(self, path: str) -> str:
@@ -42,8 +44,19 @@ class AppService:
         return inserted
     
     def llm_check(self):
+        settings = get_settings()
+        notifier: TelegramNotifier | None = None
+        if settings.TELEGRAM_BOT_API_KEY and settings.TELEGRAM_CHAT_ID:
+            try:
+                notifier = TelegramNotifier()
+            except Exception as e:
+                logger.warning(f"Telegram disabled: {e}")
+
+        if self.llm is None:
+            self.llm = LLMProcessor()
+
         offers = self.repo.get_offers_for_llm()
-        for offer in offers[:1]:
+        for offer in offers[:2]:
             offer_pydantic = JobOfferBase.model_validate(offer)
             ai_response = self.llm.process_query(candidate_data=self.candidate_data, job_data=offer_pydantic.model_dump())
             if ai_response is None:
@@ -54,6 +67,20 @@ class AppService:
                 ai_score=ai_response.score,
                 ai_summary=ai_response.summary,
             )
+
+            if notifier and ai_response.score >= settings.min_ai_score:
+                try:
+                    notifier.send_message(
+                        format_offer_message(
+                            title=offer_pydantic.title,
+                            company=offer_pydantic.company,
+                            score=ai_response.score,
+                            summary=ai_response.summary,
+                            url=offer_pydantic.url,
+                        )
+                    )
+                except Exception as e:
+                    logger.warning(f"Nie udało się wysłać wiadomości na Telegram: {e}")
 
     def run(self, mode: str = "all") -> None:
         mode = (mode or "all").lower()

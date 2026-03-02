@@ -6,7 +6,7 @@ from pathlib import Path
 
 import fcntl
 
-from src.service import AppService
+from src.service.service import AppService
 
 
 def _setup_logging(level: str) -> None:
