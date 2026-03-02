@@ -1,16 +1,16 @@
 import logging
 from .parser import JobParser
 from .llm import LLMProcessor
-from .db import SessionLocal
+from .db import SessionLocal, init_db
 from .repository import JobRepository
 from .scrapers import NoFluffJobs, JustJoinIt
-from .models import JobOffer
-from .schemas import JobOfferBase
+from .schemas import JobOfferBase, JobOfferCreate
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class AppService:
     def __init__(self, path: str = "data/candidate_data.txt"):
+        init_db()
         self.scrapers = [NoFluffJobs(), JustJoinIt()]
         self.parser = JobParser()
         self.llm = LLMProcessor()
@@ -25,23 +25,21 @@ class AppService:
             logger.error(f"Nie znaleziono pliku z danymi kandydata: {path}")
             return ""
     
-    def _process_data(self):
-        all_data = []
+    def scrape(self) -> list[JobOfferCreate]:
+        all_data: list[dict] = []
         for scraper in self.scrapers:
             data = scraper.fetch_all()
-            if scraper.__class__.__name__ == "JustJoinIt":
-                logger.info(f"Dane ze scrapera {scraper.__class__.__name__}: {data}")
             all_data.extend(data)
 
         parsed_data = self.parser.parse(all_data)
-        logger.info(f"Sparsowane dane: {parsed_data}")
-        for item in parsed_data:
-            print(item) 
-            
-    def save_to_db(self, data: list[JobOffer]):
-        for d in data:
-            if not self.repo.check_if_exists(d):
-                self.repo.save_offer(d)
+        logger.info(f"Sparsowano ofert: {len(parsed_data)}")
+        return parsed_data
+
+    def scrape_and_store(self) -> int:
+        offers = self.scrape()
+        inserted = self.repo.save_offers(offers)
+        logger.info(f"Zapisano nowych ofert do DB: {inserted}")
+        return inserted
     
     def llm_check(self):
         offers = self.repo.get_offers_for_llm()
@@ -56,4 +54,15 @@ class AppService:
                 ai_score=ai_response.score,
                 ai_summary=ai_response.summary,
             )
+
+    def run(self, mode: str = "all") -> None:
+        mode = (mode or "all").lower()
+        if mode not in {"scrape", "llm", "all"}:
+            raise ValueError("mode must be one of: scrape, llm, all")
+
+        if mode in {"scrape", "all"}:
+            self.scrape_and_store()
+
+        if mode in {"llm", "all"}:
+            self.llm_check()
             

@@ -1,5 +1,4 @@
 from sqlalchemy import select, update
-from sqlalchemy.orm import Session
 from .models import JobOffer
 from .schemas import JobOfferCreate
 
@@ -17,6 +16,30 @@ class JobRepository:
             new_offer = JobOffer(**offer_data.model_dump())
             db.add(new_offer)
             db.commit()
+
+    def save_offers(self, offers: list[JobOfferCreate]) -> int:
+        if not offers:
+            return 0
+
+        urls = [o.url for o in offers if o.url]
+        if not urls:
+            return 0
+
+        with self.session_factory() as db:
+            existing_urls = set(
+                db.execute(select(JobOffer.url).where(JobOffer.url.in_(urls))).scalars().all()
+            )
+
+            inserted = 0
+            for offer in offers:
+                if not offer.url or offer.url in existing_urls:
+                    continue
+                db.add(JobOffer(**offer.model_dump()))
+                inserted += 1
+
+            if inserted:
+                db.commit()
+            return inserted
     
     def get_offers_for_llm(self) -> list[JobOffer]:
         with self.session_factory() as db:

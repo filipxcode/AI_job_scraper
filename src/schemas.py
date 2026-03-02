@@ -1,5 +1,14 @@
 from pydantic import BaseModel, Field
 
+
+class JobOfferCreate(BaseModel):
+    title: str
+    company: str
+    city: str | None = None
+    url: str
+    source: str
+    skills: str
+
 class JobOfferBase(BaseModel):
     title: str
     company: str

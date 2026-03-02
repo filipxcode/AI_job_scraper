@@ -1,5 +1,6 @@
-from .models import JobOffer
 import logging
+from .schemas import JobOfferCreate
+
 logger = logging.getLogger(__name__)
 class JobParser:
     MAPPINGS = {
@@ -24,12 +25,12 @@ class JobParser:
         nice = item.get(mapping['nice_to_have']) or []
         return f"REQUIRED: {required}\nNICE_TO_HAVE: {nice}"
     
-    def parse(self, raw_data: list[dict]) -> list[JobOffer]:
+    def parse(self, raw_data: list[dict]) -> list[JobOfferCreate]:
         if not isinstance(raw_data, list):
             logger.warning(f"Parser dostał {type(raw_data)=}, oczekiwano list[dict].")
             return []
 
-        offers: list[JobOffer] = []
+        offers: list[JobOfferCreate] = []
 
         for item in raw_data:
             if not isinstance(item, dict):
@@ -44,13 +45,20 @@ class JobParser:
 
             skills_str = self._skills_to_string(item, mapping)
 
-            offers.append(JobOffer(
-                title=item.get(mapping['title'], "No title"),
-                company=item.get(mapping['company'], "No company"),
-                city=item.get(mapping['city'], "No city"),
-                url=item.get('full_url') or item.get('url') or "",
-                skills=skills_str,
-                source=source or "unknown",
-            ))
+            url = item.get('full_url') or item.get('url') or ""
+            if not url:
+                logger.warning("Pominięto ofertę bez URL")
+                continue
+
+            offers.append(
+                JobOfferCreate(
+                    title=item.get(mapping['title'], "No title"),
+                    company=item.get(mapping['company'], "No company"),
+                    city=item.get(mapping['city']),
+                    url=url,
+                    skills=skills_str,
+                    source=source or "unknown",
+                )
+            )
 
         return offers
