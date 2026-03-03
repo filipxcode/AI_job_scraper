@@ -1,83 +1,106 @@
 # AI Job Scraper
 
-Skrypt do:
-- scrapowania ofert (JustJoinIt + NoFluffJobs),
-- zapisywania ich do SQLite,
-- oceniania dopasowania kandydata przez LLM (Groq) i dopisywania `ai_score`/`ai_summary`.
+A script designed to:
 
-## Setup
+- Scrape job offers (from JustJoinIt + NoFluffJobs).
+- Save them to a persistent SQLite database.
+- Evaluate candidate fit using an LLM (Groq) and append `ai_score` / `ai_summary`.
 
-1) Utwórz i aktywuj venv
+## Local Setup (Without Docker)
 
-2) Zainstaluj zależności:
+1. Create and activate a virtual environment (venv).
 
-`pip install -r requirements.txt`
+2. Install dependencies:
 
-3) Ustaw `.env` (minimalnie):
+```bash
+pip install -r requirements.txt
+```
+
+3. Create a `.env` file (minimal setup):
 
 - `GROQ_API_KEY`
-- `TELEGRAM_BOT_API_KEY` (jeśli używasz)
-- `TELEGRAM_CHAT_ID` (jeśli używasz)
+- `TELEGRAM_BOT_API_KEY` (optional)
+- `TELEGRAM_CHAT_ID` (optional)
 
-4) Uzupełnij dane kandydata w `data/candidate_data.txt`.
+You can copy `.env.example` as a starting point.
 
-## Uruchamianie
+4. Fill in your candidate profile details in `data/candidate_data.txt`.
 
-`main.py` ma tryby uruchomienia:
+## Running Locally
 
-- Tylko scrape + zapis do DB:
+The `main.py` script supports different execution modes:
 
-`python main.py --mode scrape`
+Scrape only + save to DB:
 
-- Tylko LLM scoring ofert bez `ai_summary`:
+```bash
+python main.py --mode scrape
+```
 
-`python main.py --mode llm`
+LLM scoring only (for offers without `ai_summary`):
 
-- Pełny pipeline:
+```bash
+python main.py --mode llm
+```
 
-`python main.py --mode all`
+Full pipeline (Scrape + LLM):
 
-Opcje:
+```bash
+python main.py --mode all
+```
+
+Available Options:
+
 - `--candidate-path data/candidate_data.txt`
 - `--lock-file /tmp/job_scraper.lock`
 - `--log-level INFO`
 
-## CRON (VPS)
+## Automation Setup: Docker + CRON (VPS)
 
-Przykład (co 30 minut):
+The easiest and safest deployment method on a VPS. Cron triggers a "one-shot" container based on a specific schedule.
 
-`*/30 * * * * cd /home/master_g/projects/JobScraper && /home/master_g/projects/JobScraper/venv/bin/python main.py --mode all >> /var/log/job_scraper.log 2>&1`
+### 1. Build the Image
 
-Lockfile domyślnie blokuje nakładanie się uruchomień.
+Make sure you have a `.dockerignore` file in place, then build the image:
 
-## Docker + CRON (VPS)
+```bash
+docker build -t job-scraper:latest .
+```
 
-Najprostszy i najbezpieczniejszy wariant na VPS: cron odpala kontener "one-shot" co 4h.
+### 2. Prepare Persistent Data Directories
 
-1) Zbuduj obraz:
+Prepare a directory on your host machine for the SQLite database, candidate data, and the lock file.
 
-`docker build -t job-scraper:latest .`
+- Host data path: `/opt/job-scraper/data/` (Place your `candidate_data.txt` here).
+- Secrets: Create `/opt/job-scraper/.env` (Do not commit this to the repository!).
 
-2) Przygotuj katalog na dane trwałe (SQLite + candidate + lock):
+CRITICAL: Set the correct ownership so the non-root Docker user (`appuser` with ID `10001`) can write to the database:
 
-Przykład na hoście:
-- `/opt/job-scraper/data/` (tam trzymaj `candidate_data.txt`, `jobs.db`, `job_scraper.lock`)
-- `/opt/job-scraper/.env` (sekrety, np. `GROQ_API_KEY`)
+```bash
+mkdir -p /opt/job-scraper/data
+sudo chown -R 10001:10001 /opt/job-scraper/data
+```
 
-3) Ręczny test uruchomienia:
+### 3. Manual Test Run
 
-`docker run --rm \
-	--env-file /opt/job-scraper/.env \
-	-e DB_URL=sqlite:////app/data/jobs.db \
-	-v /opt/job-scraper/data:/app/data \
-	job-scraper:latest \
-	--mode all \
-	--candidate-path /app/data/candidate_data.txt \
-	--lock-file /app/data/job_scraper.lock`
+Run this command to ensure the container works properly and can write to the database:
 
-Uwaga: `--lock-file` musi wskazywać plik na wolumenie (np. `/app/data/...`), bo `/tmp` w kontenerze nie jest współdzielone między osobnymi uruchomieniami `docker run`.
+```bash
+/usr/bin/docker run --rm \
+    --env-file /opt/job-scraper/.env \
+    -e DB_URL=sqlite:////app/data/jobs.db \
+    -v /opt/job-scraper/data:/app/data \
+    job-scraper:latest \
+    --mode all \
+    --candidate-path /app/data/candidate_data.txt \
+    --lock-file /app/data/job_scraper.lock
+```
 
-4) Cron co 4 godziny (log do pliku):
+Note: The `--lock-file` must point to the mounted volume (e.g. `/app/data/...`) because the `/tmp` directory inside the container is ephemeral and not shared between separate `docker run` executions.
 
-`0 */4 * * * docker run --rm --env-file /opt/job-scraper/.env -e DB_URL=sqlite:////app/data/jobs.db -v /opt/job-scraper/data:/app/data job-scraper:latest --mode all --candidate-path /app/data/candidate_data.txt --lock-file /app/data/job_scraper.lock >> /var/log/job_scraper.log 2>&1`
-# AI_job_scraper
+### 4. Setup CRON Schedule
+
+To automate the scraper to run Monday through Friday at 8:00, 12:00, 16:00, 20:00, and 00:00, add the following line to your system's crontab (`crontab -e`):
+
+```cron
+0 0,8,12,16,20 * * 1-5 /usr/bin/docker run --rm --env-file /opt/job-scraper/.env -e DB_URL=sqlite:////app/data/jobs.db -v /opt/job-scraper/data:/app/data job-scraper:latest --mode all --candidate-path /app/data/candidate_data.txt --lock-file /app/data/job_scraper.lock >> /opt/job-scraper/cron.log 2>&1
+```
