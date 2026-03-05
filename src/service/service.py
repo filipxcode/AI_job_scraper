@@ -62,7 +62,7 @@ class AppService:
             self.llm = LLMProcessor()
 
         offers = self.repo.get_offers_for_llm()
-        for offer in offers[:2]:
+        for offer in offers[:50]:
             offer_pydantic = JobOfferBase.model_validate(offer)
             ai_response = self.llm.process_query(candidate_data=self.candidate_data, job_data=offer_pydantic.model_dump())
             if ai_response is None:
